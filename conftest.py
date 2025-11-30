@@ -15,7 +15,7 @@
 # tests directory-specific settings - this file is run automatically
 # by pytest before any tests are run
 
-import doctest
+import doctest #test
 import os
 import sys
 import warnings
