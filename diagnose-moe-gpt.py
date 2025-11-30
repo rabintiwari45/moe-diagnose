@@ -10,7 +10,7 @@ from src.transformers import (
     AutoModelForCausalLM,
     # StoppingCriteriaList
 )
-from src.transformers.models.gpt_oss.modular_gpt_oss import GptOssForCausalLM
+from src.transformers.models.gpt_oss.modeling_gpt_oss import GptOssForCausalLM
 from datasets import load_dataset
 
 
@@ -199,6 +199,6 @@ if __name__ == "__main__":
         model,
         tokenizer,
         Dataset.from_dict(dataset[:1]),  # for testing small subset first
-        use_cot_prompt=False,
+        use_cot_prompt=True,
         use_majority_vote=False
     )

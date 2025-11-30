@@ -150,6 +150,7 @@ class GptOssTopKRouter(nn.Module):
         self.bias = nn.Parameter(torch.empty(self.num_experts))
 
     def forward(self, hidden_states):
+        breakpoint()
         hidden_states = hidden_states.reshape(-1, self.hidden_dim)
         router_logits = F.linear(hidden_states, self.weight, self.bias)  # (seq_len, num_experts)
         router_top_value, router_indices = torch.topk(router_logits, self.top_k, dim=-1)  # (seq_len, top_k)
@@ -158,15 +159,17 @@ class GptOssTopKRouter(nn.Module):
         return router_scores, router_indices
 
 
-@use_kernel_forward_from_hub("MegaBlocksMoeMLP")
+# @use_kernel_forward_from_hub("MegaBlocksMoeMLP")
 class GptOssMLP(nn.Module):
     def __init__(self, config):
+        # breakpoint()
         super().__init__()
         self.router = GptOssTopKRouter(config)
         self.experts = GptOssExperts(config)
 
     def forward(self, hidden_states):
         router_scores, router_indices = self.router(hidden_states)  # (num_experts, seq_len)
+        breakpoint()
         routed_out = self.experts(hidden_states, router_indices=router_indices, routing_weights=router_scores)
         return routed_out, router_scores
 
@@ -663,6 +666,7 @@ class GptOssForCausalLM(GptOssPreTrainedModel, GenerationMixin):
         output_router_logits = (
             output_router_logits if output_router_logits is not None else self.config.output_router_logits
         )
+        # breakpoint()
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         outputs: MoeModelOutputWithPast = self.model(
