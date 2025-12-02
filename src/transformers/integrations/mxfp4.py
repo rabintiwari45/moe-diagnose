@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from ..utils import is_accelerate_available, is_torch_available, logging
-
+from collections import defaultdict
+import pickle
 
 if is_torch_available():
     import torch
@@ -152,6 +153,7 @@ def convert_moe_packed_tensors(
 
 
 class Mxfp4GptOssExperts(nn.Module):
+    routing_history = defaultdict(list)
     def __init__(self, config, layer_idx):
         super().__init__()
         self.layer_idx = layer_idx
@@ -187,6 +189,7 @@ class Mxfp4GptOssExperts(nn.Module):
         self.gate_up_proj_precision_config = None
         self.down_proj_precision_config = None
         self.limit = getattr(config, "swiglu_limit", 7.0)
+        # self.routing_history = defaultdict(list)
 
     def forward(self, hidden_states: torch.Tensor, routing_data, gather_idx, scatter_idx) -> torch.Tensor:
         FnSpecs, FusedActivation, matmul_ogs = (
@@ -195,6 +198,15 @@ class Mxfp4GptOssExperts(nn.Module):
             triton_kernels_hub.matmul_ogs.matmul_ogs,
         )
         swiglu_fn = triton_kernels_hub.swiglu.swiglu_fn
+        self.routing_history[self.layer_idx].append([
+                    routing_data.expt_data.hist,
+                ])
+
+        if self.layer_idx == 24 and len(self.routing_history.get(24))%100==0:
+            # breakpoint()
+            with open("routing_history_without_cot.pkl", 'wb') as f:
+                pickle.dump(self.routing_history, f)
+            # print(f"Saved routing history }")
         # print("Shape:", routing_data.gate_scal.shape)
         # breakpoint()
         # print(f"The value of layer is {Mxfp4GptOssExperts.layer_counter}")
@@ -426,7 +438,7 @@ def load_and_swizzle_mxfp4(module, param_name, param_value, target_device, trito
         del blocks
 
 
-_expert_layer_counter = 0
+_expert_layer_counter = 1
 def _replace_with_mxfp4_linear(
     model,
     modules_to_not_convert=None,
@@ -446,7 +458,7 @@ def _replace_with_mxfp4_linear(
             continue
         if module.__class__.__name__ == "GptOssExperts" and not quantization_config.dequantize:
             with init_empty_weights():
-                print(f"The count of experts {_expert_layer_counter}")
+                # print(f"The count of experts {_expert_layer_counter}")
                 # breakpoint()
                 model._modules[name] = Mxfp4GptOssExperts(config, layer_idx=_expert_layer_counter)
                 _expert_layer_counter += 1  # Increment global counter
