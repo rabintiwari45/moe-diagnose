@@ -65,7 +65,7 @@ class GptOssRMSNorm(nn.Module):
 
 
 class GptOssExperts(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, layer_idx):
         super().__init__()
         self.intermediate_size = config.intermediate_size
         self.num_experts = config.num_local_experts
@@ -77,6 +77,7 @@ class GptOssExperts(nn.Module):
         self.down_proj_bias = nn.Parameter(torch.empty(self.num_experts, self.hidden_size))
         self.alpha = 1.702
         self.limit = 7.0
+        self.layer_idx = layer_idx
 
     def forward(self, hidden_states: torch.Tensor, router_indices=None, routing_weights=None) -> torch.Tensor:
         """
@@ -150,7 +151,8 @@ class GptOssTopKRouter(nn.Module):
         self.bias = nn.Parameter(torch.empty(self.num_experts))
 
     def forward(self, hidden_states):
-        breakpoint()
+        # breakpoint()
+
         hidden_states = hidden_states.reshape(-1, self.hidden_dim)
         router_logits = F.linear(hidden_states, self.weight, self.bias)  # (seq_len, num_experts)
         router_top_value, router_indices = torch.topk(router_logits, self.top_k, dim=-1)  # (seq_len, top_k)
@@ -161,15 +163,15 @@ class GptOssTopKRouter(nn.Module):
 
 # @use_kernel_forward_from_hub("MegaBlocksMoeMLP")
 class GptOssMLP(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, layer_idx):
         # breakpoint()
         super().__init__()
         self.router = GptOssTopKRouter(config)
-        self.experts = GptOssExperts(config)
+        self.experts = GptOssExperts(config, layer_idx)
 
     def forward(self, hidden_states):
         router_scores, router_indices = self.router(hidden_states)  # (num_experts, seq_len)
-        breakpoint()
+        # breakpoint()
         routed_out = self.experts(hidden_states, router_indices=router_indices, routing_weights=router_scores)
         return routed_out, router_scores
 
@@ -351,7 +353,7 @@ class GptOssDecoderLayer(GradientCheckpointingLayer):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.self_attn = GptOssAttention(config=config, layer_idx=layer_idx)
-        self.mlp = GptOssMLP(config)
+        self.mlp = GptOssMLP(config, layer_idx)
         self.input_layernorm = GptOssRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = GptOssRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.attention_type = config.layer_types[layer_idx]

@@ -152,9 +152,9 @@ def convert_moe_packed_tensors(
 
 
 class Mxfp4GptOssExperts(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, layer_idx):
         super().__init__()
-
+        self.layer_idx = layer_idx
         self.num_experts = config.num_local_experts
         self.intermediate_size = config.intermediate_size
         self.hidden_size = config.hidden_size
@@ -195,6 +195,9 @@ class Mxfp4GptOssExperts(nn.Module):
             triton_kernels_hub.matmul_ogs.matmul_ogs,
         )
         swiglu_fn = triton_kernels_hub.swiglu.swiglu_fn
+        # print("Shape:", routing_data.gate_scal.shape)
+        # breakpoint()
+        # print(f"The value of layer is {Mxfp4GptOssExperts.layer_counter}")
 
         with on_device(hidden_states.device):
             act = FusedActivation(FnSpecs("swiglu", swiglu_fn, ("alpha", "limit")), (self.alpha, self.limit), 2)
@@ -423,6 +426,7 @@ def load_and_swizzle_mxfp4(module, param_name, param_value, target_device, trito
         del blocks
 
 
+_expert_layer_counter = 0
 def _replace_with_mxfp4_linear(
     model,
     modules_to_not_convert=None,
@@ -431,6 +435,7 @@ def _replace_with_mxfp4_linear(
     has_been_replaced=False,
     config=None,
 ):
+    global _expert_layer_counter
     if current_key_name is None:
         current_key_name = []
 
@@ -441,7 +446,10 @@ def _replace_with_mxfp4_linear(
             continue
         if module.__class__.__name__ == "GptOssExperts" and not quantization_config.dequantize:
             with init_empty_weights():
-                model._modules[name] = Mxfp4GptOssExperts(config)
+                print(f"The count of experts {_expert_layer_counter}")
+                # breakpoint()
+                model._modules[name] = Mxfp4GptOssExperts(config, layer_idx=_expert_layer_counter)
+                _expert_layer_counter += 1  # Increment global counter
                 has_been_replaced = True
         if module.__class__.__name__ == "GptOssMLP" and not quantization_config.dequantize:
             from types import MethodType
