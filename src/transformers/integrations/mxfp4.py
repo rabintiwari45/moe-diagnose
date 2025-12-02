@@ -199,12 +199,13 @@ class Mxfp4GptOssExperts(nn.Module):
         )
         swiglu_fn = triton_kernels_hub.swiglu.swiglu_fn
         self.routing_history[self.layer_idx].append([
-                    routing_data.expt_data.hist,
+                    routing_data.expt_data.hist.clone().cpu(),
                 ])
+        breakpoint()
 
         if self.layer_idx == 24 and len(self.routing_history.get(24))%100==0:
             # breakpoint()
-            with open("routing_history_without_cot.pkl", 'wb') as f:
+            with open("routing_history_without_cot_cpu_9_10.pkl", 'wb') as f:
                 pickle.dump(self.routing_history, f)
             # print(f"Saved routing history }")
         # print("Shape:", routing_data.gate_scal.shape)
