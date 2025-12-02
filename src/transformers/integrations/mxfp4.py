@@ -203,10 +203,10 @@ class Mxfp4GptOssExperts(nn.Module):
                 ])
         breakpoint()
 
-        if self.layer_idx == 24 and len(self.routing_history.get(24))%100==0:
-            # breakpoint()
-            with open("routing_history_without_cot_cpu_9_10.pkl", 'wb') as f:
-                pickle.dump(self.routing_history, f)
+        # if self.layer_idx == 24 and len(self.routing_history.get(24))%100==0:
+        #     # breakpoint()
+        #     with open("routing_history_without_cot_cpu_9_10.pkl", 'wb') as f:
+        #         pickle.dump(self.routing_history, f)
             # print(f"Saved routing history }")
         # print("Shape:", routing_data.gate_scal.shape)
         # breakpoint()
@@ -244,6 +244,7 @@ def routing_torch_dist(
     logits,
     n_expts_act,
 ):
+    # n_expts_act = 6
     import os
 
     GatherIndx, RoutingData, ScatterIndx, compute_expt_data_torch = (
@@ -315,10 +316,12 @@ def mlp_forward(self, hidden_states):
         routing = routing_torch_dist
     else:
         routing = triton_kernels_hub.routing.routing
+    routing = routing_torch_dist
 
     batch_size = hidden_states.shape[0]
     hidden_states = hidden_states.reshape(-1, self.router.hidden_dim)
     router_logits = nn.functional.linear(hidden_states, self.router.weight, self.router.bias)
+    breakpoint()
 
     with on_device(router_logits.device):
         routing_data, gather_idx, scatter_idx = routing(router_logits, self.router.top_k)

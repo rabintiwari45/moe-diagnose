@@ -198,7 +198,7 @@ if __name__ == "__main__":
     results = evaluate_model_on_gsm8k(
         model,
         tokenizer,
-        Dataset.from_dict(dataset[:1]),  # for testing small subset first
-        use_cot_prompt=True,
+        Dataset.from_dict(dataset[9:10]),  # for testing small subset first
+        use_cot_prompt=False,
         use_majority_vote=False
     )
