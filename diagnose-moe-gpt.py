@@ -54,7 +54,7 @@ def load_model_and_tokenizer(model_name):
     print(f"Loading model and tokenizer for {model_name}...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     # tokenizer.pad_token = tokenizer.eos_token
-    model = GptOssForCausalLM.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(
         model_name,
         device_map="auto",
         torch_dtype="auto"
@@ -188,7 +188,7 @@ def save_results(results, model_name, use_cot_prompt=False,
 
 if __name__ == "__main__":
     # 1. Setup
-    model_name = "openai/gpt-oss-20b"
+    model_name = "allenai/OLMoE-1B-7B-0125-Instruct"
     set_seed(42)
 
     tokenizer, model = load_model_and_tokenizer(model_name)
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     results = evaluate_model_on_gsm8k(
         model,
         tokenizer,
-        Dataset.from_dict(dataset[9:10]),  # for testing small subset first
-        use_cot_prompt=False,
+        Dataset.from_dict(dataset[:1]),  # for testing small subset first
+        use_cot_prompt=True,
         use_majority_vote=False
     )
