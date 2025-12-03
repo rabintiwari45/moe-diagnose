@@ -15,6 +15,8 @@ import math
 from typing import Optional, Union
 
 import torch
+from collections import defaultdict
+import pickle
 import torch.nn.functional as F
 from torch import nn
 
@@ -574,23 +576,33 @@ OLMOE_ATTENTION_CLASSES = {
 
 
 class OlmoeSparseMoeBlock(nn.Module):
-    def __init__(self, config):
+    routing_history = defaultdict(list)
+    def __init__(self, config, layer_idx):
         super().__init__()
         self.num_experts = config.num_experts
         self.top_k = config.num_experts_per_tok
         self.norm_topk_prob = config.norm_topk_prob
         self.gate = nn.Linear(config.hidden_size, self.num_experts, bias=False)
         self.experts = nn.ModuleList([OlmoeMLP(config) for _ in range(self.num_experts)])
+        self.layer_idx = layer_idx
 
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+    def forward(self, hidden_states: torch.Tensor, save_name="test.pkl") -> torch.Tensor:
         batch_size, sequence_length, hidden_dim = hidden_states.shape
-        breakpoint()
+        # breakpoint()
         hidden_states = hidden_states.view(-1, hidden_dim)
         # router_logits: (batch * sequence_length, n_experts)
         router_logits = self.gate(hidden_states)
 
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
         routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
+        self.routing_history[self.layer_idx].append([
+                    selected_experts.clone().cpu(),
+                ])
+        if self.layer_idx == 15 and len(self.routing_history.get(15))%50==0:
+            # breakpoint()
+            with open(save_name, 'wb') as f:
+                pickle.dump(self.routing_history, f)
+
         if self.norm_topk_prob:
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
         # we cast back to the input dtype
@@ -629,7 +641,7 @@ class OlmoeDecoderLayer(GradientCheckpointingLayer):
 
         self.self_attn = OLMOE_ATTENTION_CLASSES[config._attn_implementation](config=config, layer_idx=layer_idx)
 
-        self.mlp = OlmoeSparseMoeBlock(config)
+        self.mlp = OlmoeSparseMoeBlock(config, layer_idx=layer_idx)
         self.input_layernorm = OlmoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = OlmoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
@@ -645,6 +657,7 @@ class OlmoeDecoderLayer(GradientCheckpointingLayer):
         use_cache: Optional[bool] = False,
         cache_position: Optional[torch.LongTensor] = None,
         position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
+        save_name="test.pkl",
         **kwargs,
     ) -> tuple[torch.FloatTensor, Optional[tuple[torch.FloatTensor, torch.FloatTensor]]]:
         """
@@ -693,7 +706,7 @@ class OlmoeDecoderLayer(GradientCheckpointingLayer):
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states, router_logits = self.mlp(hidden_states)
+        hidden_states, router_logits = self.mlp(hidden_states, save_name=save_name)
         hidden_states = residual + hidden_states
 
         outputs = (hidden_states,)
@@ -765,6 +778,7 @@ class OlmoeModel(OlmoePreTrainedModel):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
+        save_name="test.pkl"
     ) -> Union[tuple, MoeModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_router_logits = (
@@ -828,6 +842,7 @@ class OlmoeModel(OlmoePreTrainedModel):
                 use_cache=use_cache,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
+                save_name=save_name
             )
 
             hidden_states = layer_outputs[0]
@@ -990,6 +1005,7 @@ class OlmoeForCausalLM(OlmoePreTrainedModel, GenerationMixin):
         self.router_aux_loss_coef = config.router_aux_loss_coef
         self.num_experts = config.num_experts
         self.num_experts_per_tok = config.num_experts_per_tok
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -1009,6 +1025,7 @@ class OlmoeForCausalLM(OlmoePreTrainedModel, GenerationMixin):
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
         logits_to_keep: Union[int, torch.Tensor] = 0,
+        save_name: str = "test.pkl",
         **kwargs,
     ) -> Union[tuple, MoeCausalLMOutputWithPast]:
         r"""
@@ -1056,6 +1073,7 @@ class OlmoeForCausalLM(OlmoePreTrainedModel, GenerationMixin):
             output_router_logits=output_router_logits,
             return_dict=return_dict,
             cache_position=cache_position,
+            save_name=save_name
         )
 
         hidden_states = outputs[0]

@@ -8,6 +8,7 @@ from collections import Counter
 from src.transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
+    OlmoeForCausalLM,
     # StoppingCriteriaList
 )
 from src.transformers.models.gpt_oss.modeling_gpt_oss import GptOssForCausalLM
@@ -54,10 +55,10 @@ def load_model_and_tokenizer(model_name):
     print(f"Loading model and tokenizer for {model_name}...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     # tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(
+    model = OlmoeForCausalLM.from_pretrained(
         model_name,
         device_map="auto",
-        torch_dtype="auto"
+        torch_dtype="auto",
     )
     return tokenizer, model
 
@@ -74,13 +75,14 @@ def load_gsm8k_dataset(split='test'):
 # 2️⃣ Generation helper
 # -----------------------------
 
-def generate_answer(model, tokenizer, input_text):
+def generate_answer(model, tokenizer, input_text, save_name):
     """Generate model output for a single question."""
     inputs = tokenizer(input_text, return_tensors='pt').to(model.device)
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
             max_new_tokens=1024,
+            save_name=save_name
             # pad_token_id=tokenizer.eos_token_id,
             # stopping_criteria=stop_criteria
         )
@@ -90,7 +92,7 @@ def generate_answer(model, tokenizer, input_text):
     return output_text
 
 
-def evaluate_single_example(model, tokenizer, example, use_cot_prompt=False,
+def evaluate_single_example(model, tokenizer, save_name, example, use_cot_prompt=False,
                             use_majority_vote=False, n_votes=1, temp=0.0):
     """Evaluate a single GSM8K example."""
     # Prepare input
@@ -112,11 +114,11 @@ def evaluate_single_example(model, tokenizer, example, use_cot_prompt=False,
     # Majority voting
     if use_majority_vote:
         for _ in range(n_votes):
-            output_text = generate_answer(model, tokenizer, input_text)
+            output_text = generate_answer(model, tokenizer, input_text, save_name)
             numeric = extract_predicted_answer(output_text)
             model_answers.append({'text': output_text, 'numeric': numeric})
     else:
-        output_text = generate_answer(model, tokenizer, input_text)
+        output_text = generate_answer(model, tokenizer, input_text, save_name)
         numeric = extract_predicted_answer(output_text)
         model_answers.append({'text': output_text, 'numeric': numeric})
 
@@ -141,14 +143,21 @@ def evaluate_single_example(model, tokenizer, example, use_cot_prompt=False,
 # 3️⃣ Full evaluation loop
 # -----------------------------
 
-def evaluate_model_on_gsm8k(model, tokenizer, dataset, use_cot_prompt=False,
+def evaluate_model_on_gsm8k(model, tokenizer, model_name, dataset, use_cot_prompt=False,
                             use_majority_vote=False, n_votes=1, temp=0.0):
     """Evaluate the model on the GSM8K test set."""
     results = []
-    for example in tqdm(dataset, desc="Evaluating GSM8K"):
+    for index, example in tqdm(enumerate(dataset), desc="Evaluating GSM8K"):
         print(example)
+        name = model_name.split("/")[1]
+        if use_cot_prompt:
+            name += "_with_cot"
+        else:
+            name += "_without_cot"
+        name += f"_{index}_selected_experts.pkl"
+
         result = evaluate_single_example(
-            model, tokenizer, example,
+            model, tokenizer, name, example,
             use_cot_prompt=use_cot_prompt,
             use_majority_vote=use_majority_vote,
             n_votes=n_votes,
@@ -190,7 +199,6 @@ if __name__ == "__main__":
     # 1. Setup
     model_name = "allenai/OLMoE-1B-7B-0125-Instruct"
     set_seed(42)
-
     tokenizer, model = load_model_and_tokenizer(model_name)
     dataset = load_gsm8k_dataset(split="test")
     from datasets import Dataset
@@ -199,7 +207,8 @@ if __name__ == "__main__":
     results = evaluate_model_on_gsm8k(
         model,
         tokenizer,
-        Dataset.from_dict(dataset[:1]),  # for testing small subset first
+        model_name,
+        Dataset.from_dict(dataset[:3]),  # for testing small subset first
         use_cot_prompt=True,
         use_majority_vote=False
     )
