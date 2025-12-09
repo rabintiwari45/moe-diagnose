@@ -598,10 +598,10 @@ class OlmoeSparseMoeBlock(nn.Module):
         self.routing_history[self.layer_idx].append([
                     selected_experts.clone().cpu(),
                 ])
-        if self.layer_idx == 15 and len(self.routing_history.get(15))%50==0:
-            # breakpoint()
-            with open(save_name, 'wb') as f:
-                pickle.dump(self.routing_history, f)
+        # if self.layer_idx == 15 and len(self.routing_history.get(15))%50==0:
+        #     # breakpoint()
+        #     with open(save_name, 'wb') as f:
+        #         pickle.dump(self.routing_history, f)
 
         if self.norm_topk_prob:
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)

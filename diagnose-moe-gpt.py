@@ -208,7 +208,7 @@ if __name__ == "__main__":
         model,
         tokenizer,
         model_name,
-        Dataset.from_dict(dataset[:3]),  # for testing small subset first
-        use_cot_prompt=True,
+        Dataset.from_dict(dataset[:10]),  # for testing small subset first
+        use_cot_prompt=False,
         use_majority_vote=False
     )
