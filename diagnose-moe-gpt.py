@@ -4,6 +4,7 @@ import os
 import re
 import json
 from tqdm import tqdm
+from datasets import Dataset
 from collections import Counter
 from src.transformers import (
     AutoTokenizer,
@@ -447,11 +448,18 @@ if __name__ == "__main__":
 
     for exp in experiments:
         name = exp["name"]
-        model = swap_model_components(bad_model, 
-                good_model,
-                swap_router=exp["swap_router"],
-                swap_attention=exp["swap_attention"],
-                swap_experts=exp["swap_experts"],)
+        if name not in ["good_model", "bad_model"]:
+            model = swap_model_components(bad_model, 
+                    good_model,
+                    swap_router=exp["swap_router"],
+                    swap_attention=exp["swap_attention"],
+                    swap_experts=exp["swap_experts"])
+        if name == "bad_model":
+            model = bad_model
+            bad_tokenizer = bad_tokenizer
+        if name == "good_model":
+            model = good_model
+            bad_tokenizer = good_tokenize
 
         import time
         start_time = time.time()
@@ -463,6 +471,8 @@ if __name__ == "__main__":
             use_cot_prompt=True,
             use_majority_vote=False
         )
+        output_file = f"/content/drive/MyDrive/output/{name}.json"
+        save_results(results, output_file)
         total_time =time.time() - start_time
         print(f"The total time is {total_time}")
     
