@@ -376,8 +376,12 @@ if __name__ == "__main__":
     good_model_name = "allenai/OLMoE-1B-7B-0125-Instruct"
     bad_model_name = "allenai/OLMoE-1B-7B-0924-Instruct"
     set_seed(42)
-    good_tokenizer, good_model = load_model_and_tokenizer(good_model_name)
-    bad_tokenizer, bad_model = load_model_and_tokenizer(bad_model_name)
+    model_names = [
+        "rdabin/OLMoE-1B-7B-0924-Instruct-attention_only",
+        "rdabin/OLMoE-1B-7B-0924-Instruct-router_only",
+        "rdabin/OLMoE-1B-7B-0924-Instruct-experts_only"
+    ]
+    
     dataset = load_gsm8k_dataset(split="test")
 
 
@@ -446,23 +450,10 @@ if __name__ == "__main__":
  
     ]
 
-    for exp in experiments:
-        name = exp["name"]
-        if name not in ["good_model", "bad_model"]:
-            model = swap_model_components(bad_model, 
-                    good_model,
-                    swap_router=exp["swap_router"],
-                    swap_attention=exp["swap_attention"],
-                    swap_experts=exp["swap_experts"])
-        if name == "bad_model":
-            model = bad_model
-            bad_tokenizer = bad_tokenizer
-        if name == "good_model":
-            model = good_model
-            bad_tokenizer = good_tokenize
-
+    for model_name in model_names:
         import time
         start_time = time.time()
+        tokenizer, model = load_model_and_tokenizer(model_name)
         results = evaluate_model_on_gsm8k(
             model,
             bad_tokenizer,
