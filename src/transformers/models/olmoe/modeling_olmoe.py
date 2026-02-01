@@ -17,6 +17,7 @@ from typing import Optional, Union
 import torch
 from collections import defaultdict
 import pickle
+import random
 import torch.nn.functional as F
 from torch import nn
 
@@ -577,6 +578,56 @@ OLMOE_ATTENTION_CLASSES = {
 
 class OlmoeSparseMoeBlock(nn.Module):
     routing_history = defaultdict(list)
+    routing_weight = defaultdict(list)
+    # top8_indices = {0: [6, 58, 41, 29, 25, 33, 9, 40],
+    #                 1: [11, 18, 19, 47, 42, 31, 35, 32],
+    #                 2: [4, 8, 34, 45, 60, 14, 62, 32],
+    #                 3: [52, 20, 61, 31, 9, 12, 38, 30],
+    #                 4: [17, 49, 21, 34, 8, 52, 47, 9],
+    #                 5: [0, 10, 32, 19, 6, 33, 14, 21],
+    #                 6: [61, 57, 18, 5, 3, 20, 52, 1],
+    #                 7: [4, 17, 25, 29, 32, 38, 35, 15],
+    #                 8: [11, 54, 37, 45, 42, 16, 34, 20],
+    #                 9: [5, 50, 54, 7, 51, 28, 44, 35],
+    #                 10: [16, 62, 13, 56, 2, 44, 37, 17],
+    #                 11: [57, 47, 43, 1, 27, 15, 44, 58],
+    #                 12: [2, 63, 55, 30, 43, 11, 25, 50],
+    #                 13: [27, 53, 55, 32, 46, 2, 63, 41],
+    #                 14: [52, 8, 1, 13, 62, 34, 57, 63],
+    #                 15: [48, 3, 17, 39, 44, 22, 59, 51]}
+    top8_indices = {0: [58, 6, 41, 29, 25, 33, 10, 38],
+  1: [11, 18, 47, 19, 48, 42, 21, 53],
+  2: [34, 8, 4, 32, 30, 14, 26, 62],
+  3: [52, 31, 20, 61, 12, 9, 29, 38],
+  4: [34, 21, 17, 52, 8, 49, 14, 6],
+  5: [0, 10, 19, 32, 6, 33, 14, 21],
+  6: [61, 57, 18, 20, 5, 3, 1, 62],
+  7: [4, 29, 32, 17, 25, 38, 35, 61],
+  8: [11, 54, 37, 45, 16, 34, 62, 20],
+  9: [5, 7, 50, 54, 51, 1, 28, 44],
+  10: [13, 62, 5, 16, 56, 2, 11, 37],
+  11: [57, 47, 43, 15, 44, 1, 27, 56],
+  12: [2, 63, 55, 30, 14, 41, 43, 46],
+  13: [27, 32, 55, 53, 46, 2, 54, 41],
+  14: [52, 1, 34, 57, 63, 8, 9, 60],
+  15: [48, 3, 44, 17, 53, 22, 39, 20]}
+    top8_weights =   {0: [0.176, 0.1618, 0.1525, 0.1245, 0.1209, 0.0901, 0.0886, 0.0856],
+                1: [0.2312, 0.1379, 0.1374, 0.1076, 0.1003, 0.0966, 0.0948, 0.0942],
+                2: [0.2079, 0.1778, 0.1708, 0.0959, 0.0935, 0.0908, 0.0872, 0.0763],
+                3: [0.3165, 0.1192, 0.1163, 0.1157, 0.0955, 0.0805, 0.0801, 0.0762],
+                4: [0.1473, 0.1442, 0.1347, 0.133, 0.1302, 0.1289, 0.0987, 0.0831],
+                5: [0.2153, 0.1901, 0.1627, 0.1431, 0.0999, 0.0641, 0.0626, 0.0621],
+                6: [0.2843, 0.1469, 0.1347, 0.1084, 0.104, 0.0774, 0.0734, 0.071],
+                7: [0.1978, 0.1444, 0.1318, 0.1287, 0.1103, 0.0966, 0.0961, 0.0943],
+                8: [0.2668, 0.1841, 0.143, 0.1363, 0.0864, 0.0662, 0.062, 0.0554],
+                9: [0.3071, 0.1363, 0.1188, 0.1135, 0.0841, 0.0814, 0.0811, 0.0777],
+                10: [0.2022, 0.1452, 0.1264, 0.1109, 0.1061, 0.1037, 0.1029, 0.1026],
+                11: [0.2712, 0.1657, 0.1306, 0.0985, 0.0971, 0.0856, 0.0791, 0.0723],
+                12: [0.3034, 0.1631, 0.1375, 0.1166, 0.0726, 0.0696, 0.069, 0.0682],
+                13: [0.3166, 0.1391, 0.1214, 0.1111, 0.0978, 0.0802, 0.0688, 0.0649],
+                14: [0.2402, 0.1299, 0.1291, 0.1055, 0.1013, 0.1013, 0.1, 0.0926],
+                15: [0.194, 0.1333, 0.1298, 0.1184, 0.117, 0.112, 0.1057, 0.0898]}
+
     def __init__(self, config, layer_idx):
         super().__init__()
         self.num_experts = config.num_experts
@@ -586,6 +637,21 @@ class OlmoeSparseMoeBlock(nn.Module):
         self.experts = nn.ModuleList([OlmoeMLP(config) for _ in range(self.num_experts)])
         self.layer_idx = layer_idx
 
+
+    @staticmethod
+    def map_and_repeat(values, no, device='cuda'):
+        """
+        values: list of 8 integers
+        no: number of repetitions
+        device: 'cuda' or 'cpu'
+        """
+        # Convert to tensor (1 × 8)
+        t = torch.tensor(values, device=device).unsqueeze(0)
+        
+        # Repeat no times (no × 8)
+        return t.repeat(no, 1)
+
+
     def forward(self, hidden_states: torch.Tensor, save_name="test.pkl") -> torch.Tensor:
         batch_size, sequence_length, hidden_dim = hidden_states.shape
         # breakpoint()
@@ -594,14 +660,34 @@ class OlmoeSparseMoeBlock(nn.Module):
         router_logits = self.gate(hidden_states)
 
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+        # import random
+        # # if self.layer_idx in [5,6,7,8,9]:
+        # #     top_k = 4
+        # # else:
+        # #     top_k = 8
+        # top_k =  random.choice([1, 2, 4, 8])
+        # top_k = 6
+
         routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
-        self.routing_history[self.layer_idx].append([
-                    selected_experts.clone().cpu(),
-                ])
+        # self.routing_history[self.layer_idx].append([
+        #             selected_experts.clone().cpu(),
+        #         ])
+        # self.routing_weight[self.layer_idx].append([
+        #             routing_weights.clone().cpu(),
+        #         ])
+        # breakpoint()
+        # no = selected_experts.shape[0]
+        # if self.layer_idx in [4,5,6,7,8,9]:
+        #     selected_experts = self.map_and_repeat(self.top8_indices.get(self.layer_idx), no)
+            # routing_weights = self.map_and_repeat(self.top8_weights.get(self.layer_idx), no)
         # if self.layer_idx == 15 and len(self.routing_history.get(15))%50==0:
         #     # breakpoint()
-        #     with open(save_name, 'wb') as f:
+        #     router_name = "output/router/" + save_name
+        #     with open(router_name, 'wb') as f:
         #         pickle.dump(self.routing_history, f)
+        #     weight_name = "output/weight_router/" + save_name
+        #     with open(weight_name, 'wb') as f:
+        #         pickle.dump(self.routing_weight, f)
 
         if self.norm_topk_prob:
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)

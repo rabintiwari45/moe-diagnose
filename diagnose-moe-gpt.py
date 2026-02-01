@@ -89,6 +89,7 @@ def generate_answer(model, tokenizer, input_text, save_name):
     output_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     # Extract text after 'A:'
     output_text = output_text.split("A:")[-1].strip()
+    print(f"The output text is {output_text}")
     return output_text
 
 
@@ -195,20 +196,177 @@ def save_results(results, model_name, use_cot_prompt=False,
 
     print(f"Results saved to {result_file}")
 
+# def swap_routers(bad_model, good_model):
+#     """
+#     Swap router weights from good_model to bad_model.
+    
+#     Args:
+#         bad_model: The model whose routers will be replaced
+#         good_model: The model whose routers will be copied from
+    
+#     Returns:
+#         bad_model: Modified model with swapped routers
+#     """
+#     # Swap routers at each layer
+#     for layer_idx in range(len(bad_model.model.layers)):
+#         bad_layer = bad_model.model.layers[layer_idx]
+#         good_layer = good_model.model.layers[layer_idx]
+        
+#         # Replace the router (gate)
+#         bad_layer.mlp.gate.weight.data = good_layer.mlp.gate.weight.data.clone()
+#         if bad_layer.mlp.gate.bias is not None:
+#             bad_layer.mlp.gate.bias.data = good_layer.mlp.gate.bias.data.clone()
+    
+#     return bad_model
+
+def swap_routers(bad_model, good_model):
+    """
+    Swap self-attention weights from good_model to bad_model.
+    
+    Args:
+        bad_model: The model whose self-attention will be replaced
+        good_model: The model whose self-attention will be copied from
+    
+    Returns:
+        bad_model: Modified model with swapped self-attention weights
+    """
+    # Swap self-attention at each layer
+    for layer_idx in range(len(bad_model.model.layers)):
+        bad_layer = bad_model.model.layers[layer_idx]
+        good_layer = good_model.model.layers[layer_idx]
+
+        bad_layer.mlp.gate.weight.data = good_layer.mlp.gate.weight.data.clone()
+        if bad_layer.mlp.gate.bias is not None:
+            bad_layer.mlp.gate.bias.data = good_layer.mlp.gate.bias.data.clone()
+        
+        # Replace q_proj
+        bad_layer.self_attn.q_proj.weight.data = good_layer.self_attn.q_proj.weight.data.clone()
+        if bad_layer.self_attn.q_proj.bias is not None:
+            bad_layer.self_attn.q_proj.bias.data = good_layer.self_attn.q_proj.bias.data.clone()
+        
+        # Replace k_proj
+        bad_layer.self_attn.k_proj.weight.data = good_layer.self_attn.k_proj.weight.data.clone()
+        if bad_layer.self_attn.k_proj.bias is not None:
+            bad_layer.self_attn.k_proj.bias.data = good_layer.self_attn.k_proj.bias.data.clone()
+        
+        # Replace v_proj
+        bad_layer.self_attn.v_proj.weight.data = good_layer.self_attn.v_proj.weight.data.clone()
+        if bad_layer.self_attn.v_proj.bias is not None:
+            bad_layer.self_attn.v_proj.bias.data = good_layer.self_attn.v_proj.bias.data.clone()
+        
+        # Replace o_proj
+        bad_layer.self_attn.o_proj.weight.data = good_layer.self_attn.o_proj.weight.data.clone()
+        if bad_layer.self_attn.o_proj.bias is not None:
+            bad_layer.self_attn.o_proj.bias.data = good_layer.self_attn.o_proj.bias.data.clone()
+        
+        # Replace q_norm
+        bad_layer.self_attn.q_norm.weight.data = good_layer.self_attn.q_norm.weight.data.clone()
+        if hasattr(bad_layer.self_attn.q_norm, 'bias') and bad_layer.self_attn.q_norm.bias is not None:
+            bad_layer.self_attn.q_norm.bias.data = good_layer.self_attn.q_norm.bias.data.clone()
+        
+        # Replace k_norm
+        bad_layer.self_attn.k_norm.weight.data = good_layer.self_attn.k_norm.weight.data.clone()
+        if hasattr(bad_layer.self_attn.k_norm, 'bias') and bad_layer.self_attn.k_norm.bias is not None:
+            bad_layer.self_attn.k_norm.bias.data = good_layer.self_attn.k_norm.bias.data.clone()
+    
+    return bad_model
+
+def swap_mlp_experts(bad_model, good_model):
+    """
+    Swap MLP expert weights from good_model to bad_model.
+    
+    Args:
+        bad_model: The model whose MLP experts will be replaced
+        good_model: The model whose MLP experts will be copied from
+    
+    Returns:
+        bad_model: Modified model with swapped MLP experts
+    """
+    # Swap MLP experts at each layer
+    for layer_idx in range(len(bad_model.model.layers)):
+        bad_layer = bad_model.model.layers[layer_idx]
+        good_layer = good_model.model.layers[layer_idx]
+
+        bad_layer.mlp.gate.weight.data = good_layer.mlp.gate.weight.data.clone()
+        if bad_layer.mlp.gate.bias is not None:
+            bad_layer.mlp.gate.bias.data = good_layer.mlp.gate.bias.data.clone()
+
+        # Replace q_proj
+        bad_layer.self_attn.q_proj.weight.data = good_layer.self_attn.q_proj.weight.data.clone()
+        if bad_layer.self_attn.q_proj.bias is not None:
+            bad_layer.self_attn.q_proj.bias.data = good_layer.self_attn.q_proj.bias.data.clone()
+        
+        # Replace k_proj
+        bad_layer.self_attn.k_proj.weight.data = good_layer.self_attn.k_proj.weight.data.clone()
+        if bad_layer.self_attn.k_proj.bias is not None:
+            bad_layer.self_attn.k_proj.bias.data = good_layer.self_attn.k_proj.bias.data.clone()
+        
+        # Replace v_proj
+        bad_layer.self_attn.v_proj.weight.data = good_layer.self_attn.v_proj.weight.data.clone()
+        if bad_layer.self_attn.v_proj.bias is not None:
+            bad_layer.self_attn.v_proj.bias.data = good_layer.self_attn.v_proj.bias.data.clone()
+        
+        # Replace o_proj
+        bad_layer.self_attn.o_proj.weight.data = good_layer.self_attn.o_proj.weight.data.clone()
+        if bad_layer.self_attn.o_proj.bias is not None:
+            bad_layer.self_attn.o_proj.bias.data = good_layer.self_attn.o_proj.bias.data.clone()
+        
+        # Replace q_norm
+        bad_layer.self_attn.q_norm.weight.data = good_layer.self_attn.q_norm.weight.data.clone()
+        if hasattr(bad_layer.self_attn.q_norm, 'bias') and bad_layer.self_attn.q_norm.bias is not None:
+            bad_layer.self_attn.q_norm.bias.data = good_layer.self_attn.q_norm.bias.data.clone()
+        
+        # Replace k_norm
+        bad_layer.self_attn.k_norm.weight.data = good_layer.self_attn.k_norm.weight.data.clone()
+        if hasattr(bad_layer.self_attn.k_norm, 'bias') and bad_layer.self_attn.k_norm.bias is not None:
+            bad_layer.self_attn.k_norm.bias.data = good_layer.self_attn.k_norm.bias.data.clone()
+        
+        # Swap all 64 experts
+        for expert_idx in range(len(bad_layer.mlp.experts)):
+            bad_expert = bad_layer.mlp.experts[expert_idx]
+            good_expert = good_layer.mlp.experts[expert_idx]
+            
+            # Replace gate_proj
+            bad_expert.gate_proj.weight.data = good_expert.gate_proj.weight.data.clone()
+            if bad_expert.gate_proj.bias is not None:
+                bad_expert.gate_proj.bias.data = good_expert.gate_proj.bias.data.clone()
+            
+            # Replace up_proj
+            bad_expert.up_proj.weight.data = good_expert.up_proj.weight.data.clone()
+            if bad_expert.up_proj.bias is not None:
+                bad_expert.up_proj.bias.data = good_expert.up_proj.bias.data.clone()
+            
+            # Replace down_proj
+            bad_expert.down_proj.weight.data = good_expert.down_proj.weight.data.clone()
+            if bad_expert.down_proj.bias is not None:
+                bad_expert.down_proj.bias.data = good_expert.down_proj.bias.data.clone()
+    
+    return bad_model
+
 if __name__ == "__main__":
     # 1. Setup
-    model_name = "allenai/OLMoE-1B-7B-0125-Instruct"
+    good_model_name = "allenai/OLMoE-1B-7B-0125-Instruct"
+    bad_model_name = "allenai/OLMoE-1B-7B-0924-Instruct"
     set_seed(42)
-    tokenizer, model = load_model_and_tokenizer(model_name)
+    good_tokenizer, good_model = load_model_and_tokenizer(good_model_name)
+    bad_tokenizer, bad_model = load_model_and_tokenizer(bad_model_name)
+    model = swap_mlp_experts(bad_model, good_model)
+
+
     dataset = load_gsm8k_dataset(split="test")
     from datasets import Dataset
 
-
+    import time
+    start_time = time.time()
     results = evaluate_model_on_gsm8k(
         model,
-        tokenizer,
-        model_name,
+        bad_tokenizer,
+        bad_model_name,
         Dataset.from_dict(dataset[:10]),  # for testing small subset first
-        use_cot_prompt=False,
+        use_cot_prompt=True,
         use_majority_vote=False
     )
+    total_time =time.time() - start_time
+    print(f"The total time is {total_time}")
+    # print(results)
+    # breakpoint()
