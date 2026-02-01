@@ -456,13 +456,14 @@ if __name__ == "__main__":
         tokenizer, model = load_model_and_tokenizer(model_name)
         results = evaluate_model_on_gsm8k(
             model,
-            bad_tokenizer,
+            tokenizer,
             bad_model_name,
             Dataset.from_dict(dataset[:10]),  # for testing small subset first
             use_cot_prompt=True,
             use_majority_vote=False
         )
-        output_file = f"/content/drive/MyDrive/output/{name}.json"
+        model_name = model_name.split("/")[-1]
+        output_file = f"/content/drive/MyDrive/output/{model_name}.json"
         save_results(results, output_file)
         total_time =time.time() - start_time
         print(f"The total time is {total_time}")
