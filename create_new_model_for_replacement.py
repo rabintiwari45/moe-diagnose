@@ -126,7 +126,7 @@ def main(swap_router, swap_attention, swap_experts, name):
     path = f"rdabin/OLMoE-1B-7B-0924-Instruct-{name}"
 
     from huggingface_hub import login
-    login(token="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")
+    login(token="")
 
     model.push_to_hub(path)
     bad_tokenizer.push_to_hub(path)
