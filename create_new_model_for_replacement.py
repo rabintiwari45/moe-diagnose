@@ -126,7 +126,7 @@ def main(swap_router, swap_attention, swap_experts, name):
     path = f"rdabin/OLMoE-1B-7B-0924-Instruct-{name}"
 
     from huggingface_hub import login
-    login(token="")
+    login(token="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")
 
     model.push_to_hub(path)
     bad_tokenizer.push_to_hub(path)
@@ -137,24 +137,52 @@ def main(swap_router, swap_attention, swap_experts, name):
 if __name__ == "__main__":
     experiments = [
         # Single component swaps
+        # {
+        #     "name": "router_only",
+        #     "swap_router": True,
+        #     "swap_attention": False,
+        #     "swap_experts": False
+        # },
+        # {
+        #     "name": "attention_only",
+        #     "swap_router": False,
+        #     "swap_attention": True,
+        #     "swap_experts": False
+        # },
+        # {
+        #     "name": "experts_only",
+        #     "swap_router": False,
+        #     "swap_attention": False,
+        #     "swap_experts": True
+        # },
+        # Two component combinations
         {
-            "name": "router_only",
+            "name": "router_and_attention",
             "swap_router": True,
-            "swap_attention": False,
-            "swap_experts": False
-        },
-        {
-            "name": "attention_only",
-            "swap_router": False,
             "swap_attention": True,
             "swap_experts": False
         },
         {
-            "name": "experts_only",
-            "swap_router": False,
+            "name": "router_and_experts",
+            "swap_router": True,
             "swap_attention": False,
             "swap_experts": True
-        },]
+        },
+        {
+            "name": "attention_and_experts",
+            "swap_router": False,
+            "swap_attention": True,
+            "swap_experts": True
+        },
+        # All components
+        {
+            "name": "all_components",
+            "swap_router": True,
+            "swap_attention": True,
+            "swap_experts": True
+        },
+        
+        ]
 
     for exp in experiments:
         main(exp["swap_router"], exp["swap_attention"], exp["swap_experts"], exp["name"])
