@@ -371,34 +371,97 @@ def save_results(results, output_file=None):
     print(f"\nResults saved to: {output_file}")
     return output_file
 
+# if __name__ == "__main__":
+#     # 1. Setup
+#     good_model_name = "allenai/OLMoE-1B-7B-0125-Instruct"
+#     bad_model_name = "allenai/OLMoE-1B-7B-0924-Instruct"
+#     set_seed(42)
+#     model_names = [
+#         "rdabin/OLMoE-1B-7B-0924-Instruct-attention_only",
+#         # "rdabin/OLMoE-1B-7B-0924-Instruct-router_only",
+#         # "rdabin/OLMoE-1B-7B-0924-Instruct-experts_only"
+#     ]
+    
+#     dataset = load_gsm8k_dataset(split="test")
+
+#     for model_name in model_names:
+#         import time
+#         start_time = time.time()
+#         tokenizer, model = load_model_and_tokenizer(model_name)
+#         results = evaluate_model_on_gsm8k(
+#             model,
+#             tokenizer,
+#             bad_model_name,
+#             Dataset.from_dict(dataset[:100]),  # for testing small subset first
+#             use_cot_prompt=True,
+#             use_majority_vote=False
+#         )
+#         model_name = model_name.split("/")[-1]
+#         output_file = f"/teamspace/studios/this_studio/moe-diagnose/output/output_olmoe_100/{model_name}.json"
+#         save_results(results, output_file)
+#         total_time =time.time() - start_time
+#         print(f"The total time is {total_time}")
+
 if __name__ == "__main__":
+    import argparse
+    import time
+    import gc
+    import torch
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        required=True,
+        help="Hugging Face model repo to evaluate"
+    )
+    parser.add_argument(
+        "--num_samples",
+        type=int,
+        default=100,
+        help="Number of GSM8K samples"
+    )
+    args = parser.parse_args()
+
     # 1. Setup
     good_model_name = "allenai/OLMoE-1B-7B-0125-Instruct"
     bad_model_name = "allenai/OLMoE-1B-7B-0924-Instruct"
     set_seed(42)
-    model_names = [
-        "rdabin/OLMoE-1B-7B-0924-Instruct-attention_only",
-        "rdabin/OLMoE-1B-7B-0924-Instruct-router_only",
-        "rdabin/OLMoE-1B-7B-0924-Instruct-experts_only"
-    ]
-    
-    dataset = load_gsm8k_dataset(split="test")
 
-    for model_name in model_names:
-        import time
-        start_time = time.time()
-        tokenizer, model = load_model_and_tokenizer(model_name)
+    print(f"\n===== Evaluating {args.model_name} =====")
+
+    dataset = load_gsm8k_dataset(split="test")
+    dataset = Dataset.from_dict(dataset[100:101])
+
+    start_time = time.time()
+
+    tokenizer, model = load_model_and_tokenizer(args.model_name)
+    model.eval()
+
+    with torch.no_grad():
         results = evaluate_model_on_gsm8k(
             model,
             tokenizer,
             bad_model_name,
-            Dataset.from_dict(dataset[:10]),  # for testing small subset first
+            dataset,
             use_cot_prompt=True,
             use_majority_vote=False
         )
-        model_name = model_name.split("/")[-1]
-        output_file = f"/content/drive/MyDrive/output/{model_name}.json"
-        save_results(results, output_file)
-        total_time =time.time() - start_time
-        print(f"The total time is {total_time}")
+
+    short_name = args.model_name.split("/")[-1]
+    output_file = (
+        f"/teamspace/studios/this_studio/moe-diagnose/output/output_olmoe_100_500/"
+        f"{short_name}.json"
+    )
+    save_results(results, output_file)
+
+    total_time = time.time() - start_time
+    print(f"Total time: {total_time:.2f}s")
+
+    # 🔥 HARD CLEANUP (important)
+    del model, tokenizer, results
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.ipc_collect()
+
     
