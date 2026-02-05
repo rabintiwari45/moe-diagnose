@@ -36,9 +36,9 @@ def load_model_and_tokenizer(model_name):
     return tokenizer, model
 
 
-def load_boolq_dataset(split="validation"):
+def load_arc_c_dataset(split="test"):
     print("\nLoading BOOLQ dataset...")
-    dataset = load_dataset('boolq', split=split)
+    dataset = load_dataset("allenai/ai2_arc", "ARC-Challenge", split=split)
     print(f"BOOLQ {split} size: {len(dataset)}")
     return dataset
 
@@ -54,7 +54,7 @@ def generate_answer(model, tokenizer, input_text):
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
-            max_new_tokens=1024,
+            max_new_tokens=3,
             # pad_token_id=tokenizer.eos_token_id,
             # stopping_criteria=stop_criteria
         )
@@ -65,41 +65,46 @@ def generate_answer(model, tokenizer, input_text):
     # print(f"The output text is {output_text}")
     return output_text
 
-def extract_boolq_answer(response):
-    response = response.strip().lower()
-    response = response.strip('.,"\' ')
-    if any(word in response for word in ['yes', 'yeah', 'yep', 'correct', 'true', 'affirmative']):
-        return True
-    elif any(word in response for word in ['no', 'nope', 'nah', 'false', 'negative']):
-        return False
-    else:
-        return None
+def extract_option(s: str) -> str | None:
+    match = re.search(r'\b([A-D])\b', s)
+    return match.group(1) if match else None
 
 
 def evaluate_single_example(model, tokenizer, example, temp=0.0):
     """Evaluate a single GSM8K example."""
     # Prepare input
+    labels = example["choices"]["label"]
+    texts = example["choices"]["text"]
+
+    choices_str = "\n".join(
+        f"{l}. {t}" for l, t in zip(labels, texts)
+    )
+
     input_text = f"""
-    Passage:
-    {example['passage']}
-
     Question: {example['question']}
-    Please answer 'Yes' or 'No' based on the information provided in the passage.
 
-    Answer:""".strip()
+    Choices:
+    {choices_str}
+
+    Select the one correct option (A, B, C, or D) and output only the letter.
+
+    Answer:
+    """.strip()
+    breakpoint()
 
     # Ground truth
-    ground_truth = example['answer']
+    ground_truth = example['answerKey']
 
     output_text = generate_answer(model, tokenizer, input_text)
     # breakpoint()
     answer = output_text.split("Answer:")[-1].strip()
-    extracted_answer = extract_boolq_answer(answer)
+    extracted_answer = extract_option(answer)
+    # breakpoint()
     correct = (extracted_answer == ground_truth)
 
     return {
-        'question': example['passage'] +  example['question'],
-        'gold_answer_text': example['answer'],
+        'question': example['question'] +  str(example['choices']),
+        'gold_answer_text': example['answerKey'],
         'model_answers_text': output_text,
         'extracted_model_answers': extracted_answer,
         'extracted_gold_answer': ground_truth,
@@ -111,7 +116,7 @@ def evaluate_single_example(model, tokenizer, example, temp=0.0):
 # 3️⃣ Full evaluation loop
 # -----------------------------
 
-def evaluate_model_on_boolq(model, tokenizer, dataset, temp=0.0):
+def evaluate_model_on_arc_c(model, tokenizer, dataset, temp=0.0):
     """Evaluate the model on the GSM8K test set."""
     results = []
     for index, example in tqdm(enumerate(dataset), desc="Evaluating GSM8K"):
@@ -169,8 +174,8 @@ if __name__ == "__main__":
 
     print(f"\n===== Evaluating {args.model_name} =====")
 
-    dataset = load_boolq_dataset(split="validation")
-    dataset = Dataset.from_dict(dataset[200:500])
+    dataset = load_arc_c_dataset(split="test")
+    dataset = Dataset.from_dict(dataset[:500])
 
     start_time = time.time()
 
@@ -178,7 +183,7 @@ if __name__ == "__main__":
     model.eval()
 
     with torch.no_grad():
-        results = evaluate_model_on_boolq(
+        results = evaluate_model_on_arc_c(
             model,
             tokenizer,
             dataset,
@@ -188,7 +193,7 @@ if __name__ == "__main__":
     
     short_name = args.model_name.split("/")[-1]
     output_file = (
-        f"/teamspace/studios/this_studio/moe-diagnose/output/test/hellaswag_300_500/"
+        f"/teamspace/studios/this_studio/moe-diagnose/output/arc_c/"
         f"{short_name}.json"
     )
     save_results(results, output_file)
