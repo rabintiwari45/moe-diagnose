@@ -3,8 +3,8 @@ set -e
 
 
 MODELS=(
-  "allenai/OLMoE-1B-7B-0924-Instruct"
   "allenai/OLMoE-1B-7B-0125-Instruct"
+  "allenai/OLMoE-1B-7B-0924-Instruct"
 
 )
 

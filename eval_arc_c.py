@@ -54,7 +54,7 @@ def generate_answer(model, tokenizer, input_text):
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
-            max_new_tokens=3,
+            max_new_tokens=50,
             # pad_token_id=tokenizer.eos_token_id,
             # stopping_criteria=stop_criteria
         )
@@ -81,6 +81,52 @@ def evaluate_single_example(model, tokenizer, example, temp=0.0):
     )
 
     input_text = f"""
+
+    Question: Which gas is most abundant in Earth's atmosphere?
+    Choices:
+    A. Oxygen
+    B. Nitrogen
+    C. Carbon Dioxide
+    D. Argon
+    Reasoning: Earth’s atmosphere is composed of about 78% nitrogen and 21% oxygen. Since nitrogen has the highest proportion, it is the most abundant gas.
+    The Answer: B
+
+    Question: What process do plants use to convert sunlight into energy?
+    Choices:
+    A. Respiration
+    B. Transpiration
+    C. Photosynthesis
+    D. Fermentation
+    Reasoning: Plants capture sunlight using chlorophyll and convert it into chemical energy through photosynthesis.
+    The Answer: C
+
+    Question: Which planet is known as the Red Planet?
+    Choices:
+    A. Venus
+    B. Mars
+    C. Jupiter
+    D. Saturn
+    Reasoning: Mars appears red due to iron oxide (rust) on its surface, which gives it a reddish color.
+    The Answer: B
+
+    Question: What is the main function of roots in plants?
+    Choices:
+    A. Photosynthesis
+    B. Absorb water and nutrients
+    C. Produce seeds
+    D. Attract pollinators
+    Reasoning: Roots anchor the plant and absorb water and nutrients from the soil, while photosynthesis occurs in leaves.
+    The Answer: B
+
+    Question: Which animal group does a frog belong to?
+    Choices:
+    A. Mammal
+    B. Reptile
+    C. Amphibian
+    D. Fish
+    Reasoning: Frogs live in water during early life and on land as adults, which is characteristic of amphibians.
+    The Answer: C
+
     Question: {example['question']}
 
     Choices:
@@ -90,7 +136,7 @@ def evaluate_single_example(model, tokenizer, example, temp=0.0):
 
     Answer:
     """.strip()
-    breakpoint()
+    # breakpoint()
 
     # Ground truth
     ground_truth = example['answerKey']
@@ -193,7 +239,7 @@ if __name__ == "__main__":
     
     short_name = args.model_name.split("/")[-1]
     output_file = (
-        f"/teamspace/studios/this_studio/moe-diagnose/output/arc_c/"
+        f"/teamspace/studios/this_studio/moe-diagnose/output/arc_c_fewhot/"
         f"{short_name}.json"
     )
     save_results(results, output_file)

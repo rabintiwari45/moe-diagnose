@@ -464,4 +464,15 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     torch.cuda.ipc_collect()
 
+
+    # "allenai/OLMoE-1B-7B-0125-Instruct"
+    # "allenai/OLMoE-1B-7B-0924-Instruct"
+    # "rdabin/OLMoE-1B-7B-0924-Instruct-router_only"
+    # "rdabin/OLMoE-1B-7B-0924-Instruct-attention_only"
+    # "rdabin/OLMoE-1B-7B-0924-Instruct-experts_only"
+    # "rdabin/OLMoE-1B-7B-0924-Instruct-router_and_attention"
+    # "rdabin/OLMoE-1B-7B-0924-Instruct-router_and_experts"
+    # "rdabin/OLMoE-1B-7B-0924-Instruct-attention_and_experts"
+    # "rdabin/OLMoE-1B-7B-0924-Instruct-all_components"
+
     
